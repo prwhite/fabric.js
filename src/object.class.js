@@ -55,8 +55,9 @@
     stateProperties:  ('top left width height scaleX scaleY flipX flipY ' +
                       'theta angle opacity cornersize fill overlayFill stroke ' +
                       'strokeWidth fillRule borderScaleFactor transformMatrix ' +
-                      'selectable').split(' '),
-
+                      'selectable ' +
+                      'id inkscape:label').split(' '),
+                      
     top:                      0,
     left:                     0,
     width:                    0,
