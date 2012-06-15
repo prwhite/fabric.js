@@ -4,7 +4,9 @@
     return;
   }
 
-  var DOMParser = new require('xmldom').DOMParser,
+  fabric.DOMParser = require('xmldom').DOMParser;
+
+  var DOMParser = new fabric.DOMParser;
       URL = require('url'),
       HTTP = require('http'),
 

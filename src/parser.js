@@ -629,8 +629,11 @@
   function loadSVGFromString(string, callback) {
     string = string.trim();
     var doc;
-    if (typeof DOMParser !== 'undefined') {
-      var parser = new DOMParser();
+
+    // Grab Parser class from node setup or browser global scope.
+    var Parser = fabric.DOMParser || DOMParser;
+    if (typeof Parser !== 'undefined') {
+      var parser = new Parser();
       if (parser && parser.parseFromString) {
         doc = parser.parseFromString(string, 'text/xml');
       }
