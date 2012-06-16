@@ -3783,8 +3783,11 @@ fabric.util.string = {
   function loadSVGFromString(string, callback) {
     string = string.trim();
     var doc;
-    if (typeof DOMParser !== 'undefined') {
-      var parser = new DOMParser();
+
+    // Grab Parser class from node setup or browser global scope.
+    var Parser = fabric.DOMParser || DOMParser;
+    if (typeof Parser !== 'undefined') {
+      var parser = new Parser();
       if (parser && parser.parseFromString) {
         doc = parser.parseFromString(string, 'text/xml');
       }
@@ -7276,8 +7279,9 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
     stateProperties:  ('top left width height scaleX scaleY flipX flipY ' +
                       'theta angle opacity cornersize fill overlayFill stroke ' +
                       'strokeWidth fillRule borderScaleFactor transformMatrix ' +
-                      'selectable').split(' '),
-
+                      'selectable ' +
+                      'id inkscape:label').split(' '),
+                      
     top:                      0,
     left:                     0,
     width:                    0,
@@ -10399,7 +10403,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
    * @static
    * @see http://www.w3.org/TR/SVG/paths.html#PathElement
    */
-  fabric.Path.ATTRIBUTE_NAMES = 'd fill fill-opacity opacity fill-rule stroke stroke-width transform'.split(' ');
+  fabric.Path.ATTRIBUTE_NAMES = 'd fill fill-opacity opacity fill-rule stroke stroke-width transform id inkscape:label'.split(' ');
   
   /**
    * Creates an instance of fabric.Path from an SVG <path> element
@@ -12630,7 +12634,9 @@ fabric.Image.filters.GradientTransparency.fromObject = function(object) {
     return;
   }
 
-  var DOMParser = new require('xmldom').DOMParser,
+  fabric.DOMParser = require('xmldom').DOMParser;
+
+  var DOMParser = new fabric.DOMParser;
       URL = require('url'),
       HTTP = require('http'),
 
