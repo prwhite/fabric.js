@@ -186,6 +186,15 @@
         hasBorders:       this.hasBorders,
         hasRotatingPoint: this.hasRotatingPoint
       };
+      
+      // For completeness, be able to write out these properties that are not necessarily 
+      // present in standard SVG.
+      if (this.id !== undefined)
+        object.id = this.id;
+
+      // This is nasty because the attribute includes a colon in the name.
+      if (this[ "inkscape:label" ] !== undefined)
+        object[ "inkscape:label" ] = this[ "inkscape:label" ];
 
       if (!this.includeDefaultValues) {
         object = this._removeDefaultValues(object);
