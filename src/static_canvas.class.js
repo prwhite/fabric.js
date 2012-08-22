@@ -92,20 +92,6 @@
     clipTo: null,
 
     /**
-     * Default canvas width
-     * @constant
-     * @type Number
-     */
-    CANVAS_WIDTH: 600,
-
-    /**
-     * Default canvas height
-     * @constant
-     * @type Number
-     */
-    CANVAS_HEIGHT: 600,
-
-    /**
      * Callback; invoked right before object is about to be scaled/rotated
      * @method onBeforeScaleRotate
      * @param {fabric.Object} target Object that's about to be scaled/rotated
@@ -157,10 +143,11 @@
      * @chainable
      */
     setOverlayImage: function (url, callback) { // TODO (kangax): test callback
-      return fabric.util.loadImage(url, function(img) {
+      fabric.util.loadImage(url, function(img) {
         this.overlayImage = img;
         callback && callback();
       }, this);
+      return this;
     },
 
     /**
@@ -175,11 +162,11 @@
     setBackgroundImage: function (url, callback, options) {
       return fabric.util.loadImage(url, function(img) {
         this.backgroundImage = img;
-        if (options && options.backgroundOpacity) {
-            this.backgroundOpacity = options.backgroundOpacity;
+        if (options && ('backgroundImageOpacity' in options)) {
+            this.backgroundImageOpacity = options.backgroundImageOpacity;
         }
-        if (options && options.backgroundStretch) {
-            this.backgroundStretch = options.backgroundStretch;
+        if (options && ('backgroundImageStretch' in options)) {
+            this.backgroundImageStretch = options.backgroundImageStretch;
         }
         callback && callback();
       }, this);
@@ -225,6 +212,8 @@
 
       this.width = parseInt(this.lowerCanvasEl.width, 10) || 0;
       this.height = parseInt(this.lowerCanvasEl.height, 10) || 0;
+
+      if (!this.lowerCanvasEl.style) return;
 
       this.lowerCanvasEl.style.width = this.width + 'px';
       this.lowerCanvasEl.style.height = this.height + 'px';
@@ -370,12 +359,22 @@
     add: function () {
       this._objects.push.apply(this._objects, arguments);
       for (var i = arguments.length; i--; ) {
-        this.stateful && arguments[i].setupState();
-        arguments[i].setCoords();
-        this.fire('object:added', { target: arguments[i] });
+        this._initObject(arguments[i]);
       }
       this.renderOnAddition && this.renderAll();
       return this;
+    },
+
+    /**
+     * @private
+     * @method _initObject
+     */
+    _initObject: function(obj) {
+      this.stateful && obj.setupState();
+      obj.setCoords();
+      obj.canvas = this;
+      this.fire('object:added', { target: obj });
+      obj.fire('added');
     },
 
     /**
@@ -394,10 +393,8 @@
       else {
         this._objects.splice(index, 0, object);
       }
-      this.stateful && object.setupState();
-      object.setCoords();
-      this.renderAll();
-      this.fire('object:added', { target: object });
+      this._initObject(object);
+      this.renderOnAddition && this.renderAll();
       return this;
     },
 
@@ -560,11 +557,12 @@
      * Exports canvas element to a dataurl image.
      * @method toDataURL
      * @param {String} format the format of the output image. Either "jpeg" or "png".
+     * @param {Number} quality quality level (0..1)
      * @return {String}
      */
-    toDataURL: function (format) {
+    toDataURL: function (format, quality) {
       this.renderAll(true);
-      var data = (this.upperCanvasEl || this.lowerCanvasEl).toDataURL('image/' + format);
+      var data = (this.upperCanvasEl || this.lowerCanvasEl).toDataURL('image/' + format, quality);
       this.renderAll();
       return data;
     },
@@ -574,20 +572,26 @@
      * @method toDataURLWithMultiplier
      * @param {String} format (png|jpeg)
      * @param {Number} multiplier
+     * @param {Number} quality (0..1)
      * @return {String}
      */
-    toDataURLWithMultiplier: function (format, multiplier) {
+    toDataURLWithMultiplier: function (format, multiplier, quality) {
 
       var origWidth = this.getWidth(),
           origHeight = this.getHeight(),
           scaledWidth = origWidth * multiplier,
           scaledHeight = origHeight * multiplier,
-          activeObject = this.getActiveObject();
+          activeObject = this.getActiveObject(),
+          activeGroup = this.getActiveGroup();
 
       this.setWidth(scaledWidth).setHeight(scaledHeight);
       this.contextTop.scale(multiplier, multiplier);
 
-      if (activeObject) {
+      if (activeGroup) {
+        // not removing group due to complications with restoring it with correct state afterwords
+        this._tempRemoveBordersCornersFromGroup(activeGroup);
+      }
+      else if (activeObject) {
         this.deactivateAll();
       }
 
@@ -598,17 +602,43 @@
 
       this.renderAll(true);
 
-      var dataURL = this.toDataURL(format);
+      var dataURL = this.toDataURL(format, quality);
 
       this.contextTop.scale(1 / multiplier,  1 / multiplier);
       this.setWidth(origWidth).setHeight(origHeight);
 
-      if (activeObject) {
+      if (activeGroup) {
+        this._restoreBordersCornersOnGroup(activeGroup);
+      }
+      else if (activeObject) {
         this.setActiveObject(activeObject);
       }
+
       this.renderAll();
 
       return dataURL;
+    },
+
+    _tempRemoveBordersCornersFromGroup: function(group) {
+      group.origHideCorners = group.hideCorners;
+      group.origBorderColor = group.borderColor;
+
+      group.hideCorners = true;
+      group.borderColor = 'rgba(0,0,0,0)';
+
+      group.forEachObject(function(o) {
+        o.origBorderColor = o.borderColor;
+        o.borderColor = 'rgba(0,0,0,0)';
+      });
+    },
+    _restoreBordersCornersOnGroup: function(group) {
+      group.hideCorners = group.origHideCorners;
+      group.borderColor = group.origBorderColor;
+
+      group.forEachObject(function(o) {
+        o.borderColor = o.origBorderColor;
+        delete o.origBorderColor;
+      });
     },
 
     /**

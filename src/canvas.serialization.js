@@ -97,31 +97,30 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
           }
           else if (obj.type === 'text') {
 
-            obj.path = path;
-            var object = fabric.Text.fromObject(obj);
-            var onscriptload = function () {
-              // TODO (kangax): find out why Opera refuses to work without this timeout
-              if (Object.prototype.toString.call(fabric.window.opera) === '[object Opera]') {
-                setTimeout(function () {
-                  onObjectLoaded(object, index);
-                }, 500);
-              }
-              else {
-                onObjectLoaded(object, index);
-              }
+            if (obj.useNative) {
+              onObjectLoaded(fabric.Text.fromObject(obj), index);
             }
+            else {
+              obj.path = path;
+              var object = fabric.Text.fromObject(obj);
+              var onscriptload = function () {
+                // TODO (kangax): find out why Opera refuses to work without this timeout
+                if (Object.prototype.toString.call(fabric.window.opera) === '[object Opera]') {
+                  setTimeout(function () {
+                    onObjectLoaded(object, index);
+                  }, 500);
+                }
+                else {
+                  onObjectLoaded(object, index);
+                }
+              }
 
-            fabric.util.getScript(path, onscriptload);
+              fabric.util.getScript(path, onscriptload);
+            }
           }
           else {
             fabric.loadSVGFromURL(path, function (elements, options) {
-              if (elements.length > 1) {
-                var object = new fabric.PathGroup(elements, obj);
-              }
-              else {
-                var object = elements[0];
-              }
-              object.setSourcePath(path);
+              var object = fabric.util.groupSVGElements(elements, obj, path);
 
               // copy parameters from serialied json to object (left, top, scaleX, scaleY, etc.)
               // skip this step if an object is a PathGroup, since we already passed it options object before
@@ -166,12 +165,18 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
       _this.backgroundColor = serialized.background;
 
       if (serialized.backgroundImage) {
-        _this.setBackgroundImage(serialized.backgroundImage, _this.renderAll.bind(_this));
-        _this.backgroundImageOpacity = serialized.backgroundImageOpacity;
-        _this.backgroundImageStretch = serialized.backgroundImageStretch;
+        _this.setBackgroundImage(serialized.backgroundImage, function() {
+
+          _this.backgroundImageOpacity = serialized.backgroundImageOpacity;
+          _this.backgroundImageStretch = serialized.backgroundImageStretch;
+
+          _this.renderAll();
+
+          callback && callback();
+        });
       }
-      if (callback) {
-        callback();
+      else {
+        callback && callback();
       }
     });
 
@@ -184,42 +189,13 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
    * @param {Function} callback
    */
   _enlivenObjects: function (objects, callback) {
-    var numLoadedImages = 0,
-        // get length of all images
-        numTotalImages = objects.filter(function (o) {
-          return o.type === 'image';
-        }).length;
-
     var _this = this;
-
-    objects.forEach(function (o, index) {
-      if (!o.type) {
-        return;
-      }
-      switch (o.type) {
-        case 'image':
-        case 'font':
-          fabric[fabric.util.string.capitalize(o.type)].fromObject(o, function (o) {
-            _this.insertAt(o, index, true);
-            if (++numLoadedImages === numTotalImages) {
-              if (callback) {
-                callback();
-              }
-            }
-          });
-          break;
-        default:
-          var klass = fabric[fabric.util.string.camelize(fabric.util.string.capitalize(o.type))];
-          if (klass && klass.fromObject) {
-            _this.insertAt(klass.fromObject(o), index, true);
-          }
-          break;
-      }
+    fabric.util.enlivenObjects(objects, function(enlivenedObjects) {
+      enlivenedObjects.forEach(function(obj, index) {
+        _this.insertAt(obj, index, true);
+      });
+      callback && callback();
     });
-
-    if (numTotalImages === 0 && callback) {
-      callback();
-    }
   },
 
   /**
@@ -256,9 +232,7 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
     var data = JSON.stringify(this);
     this.cloneWithoutData(function(clone) {
       clone.loadFromJSON(data, function() {
-        if (callback) {
-          callback(clone);
-        }
+        callback && callback(clone);
       });
     });
   },
@@ -281,17 +255,13 @@ fabric.util.object.extend(fabric.StaticCanvas.prototype, {
     if (this.backgroundImage) {
       clone.setBackgroundImage(this.backgroundImage.src, function() {
         clone.renderAll();
-        if (callback) {
-          callback(clone);
-        }
+        callback && callback(clone);
       });
       clone.backgroundImageOpacity = this.backgroundImageOpacity;
       clone.backgroundImageStretch = this.backgroundImageStretch;
     }
     else {
-      if (callback) {
-        callback(clone);
-      }
+      callback && callback(clone);
     }
   }
 });

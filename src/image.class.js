@@ -1,5 +1,3 @@
-//= require "object.class"
-
 (function(global) {
 
   "use strict";
@@ -227,7 +225,7 @@
       canvasEl.width = imgEl.width;
       canvasEl.height = imgEl.height;
 
-      canvasEl.getContext('2d').drawImage(imgEl, 0, 0);
+      canvasEl.getContext('2d').drawImage(imgEl, 0, 0, imgEl.width, imgEl.height);
 
       this.filters.forEach(function(filter) {
         filter && filter.applyTo(canvasEl);
@@ -235,7 +233,7 @@
 
        /** @ignore */
       replacement.onload = function() {
-        _this.setElement(replacement);
+        _this._element = replacement;
         callback && callback();
         replacement.onload = canvasEl = imgEl = null;
       };
@@ -245,7 +243,7 @@
       if (isLikelyNode) {
         var base64str = canvasEl.toDataURL('image/png').replace(/data:image\/png;base64,/, '');
         replacement.src = new Buffer(base64str, 'base64');
-        _this.setElement(replacement);
+        _this._element = replacement;
 
         // onload doesn't fire in node, so we invoke callback manually
         callback && callback();
@@ -310,9 +308,10 @@
      * @param {Object} options Options object
      */
     _initConfig: function(options) {
-      this.setOptions(options || { });
+      options || (options = { });
+      this.setOptions(options);
       this._setBorder();
-      this._setWidthHeight();
+      this._setWidthHeight(options);
     },
 
     /**
@@ -322,7 +321,7 @@
     _initFilters: function(object) {
       if (object.filters && object.filters.length) {
         this.filters = object.filters.map(function(filterObj) {
-          return fabric.Image.filters[filterObj.type].fromObject(filterObj);
+          return filterObj && fabric.Image.filters[filterObj.type].fromObject(filterObj);
         });
       }
     },
@@ -342,10 +341,16 @@
     /**
      * @private
      */
-    _setWidthHeight: function() {
+    _setWidthHeight: function(options) {
       var sidesBorderWidth = 2 * this.currentBorder;
-      this.width = (this.getElement().width || 0) + sidesBorderWidth;
-      this.height = (this.getElement().height || 0) + sidesBorderWidth;
+
+      this.width = 'width' in options
+        ? options.width
+        : ((this.getElement().width || 0) + sidesBorderWidth);
+
+      this.height = 'height' in options
+        ? options.height
+        : ((this.getElement().height || 0) + sidesBorderWidth);
     },
 
     /**

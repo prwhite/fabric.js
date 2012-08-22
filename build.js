@@ -1,13 +1,22 @@
 var fs = require('fs'),
     exec = require('child_process').exec;
 
-var modules = process.argv.slice(2)[0];
-modules = modules ? modules.split('=')[1].split(',') : [ ];
+var buildArgs = process.argv.slice(2),
+    buildArgsAsObject = { };
 
-var minifier = process.argv.slice(3)[0];
+buildArgs.forEach(function(arg) {
+  var key = arg.split('=')[0],
+      value = arg.split('=')[1];
+
+  buildArgsAsObject[key] = value;
+});
+
+var modulesToInclude = buildArgsAsObject.modules ? buildArgsAsObject.modules.split(',') : [ ];
+var modulesToExclude = buildArgsAsObject.exclude ? buildArgsAsObject.exclude.split(',') : [ ];
+
+var minifier = buildArgsAsObject.minifier || 'yui';
 var mininfierCmd;
 
-minifier = minifier ? minifier.split('=')[1] : 'yui';
 if (minifier === 'yui') {
   mininfierCmd = 'java -jar lib/yuicompressor-2.4.2.jar dist/all.js -o dist/all.min.js';
 }
@@ -15,9 +24,15 @@ else if (minifier === 'closure') {
   mininfierCmd = 'java -jar lib/google_closure_compiler.jar --js dist/all.js --js_output_file dist/all.min.js';
 }
 
-var includeAllModules = modules.length === 1 && modules[0] === 'ALL';
+var includeAllModules = modulesToInclude.length === 1 && modulesToInclude[0] === 'ALL';
+var noStrict = 'no-strict' in buildArgsAsObject;
 
-var distFileContents = '';
+var distFileContents =
+  '/* build: `node build.js modules=' +
+    modulesToInclude.join(',') +
+    (modulesToExclude.length ? (' exclude=' + modulesToExclude.join(',')) : '') +
+    (noStrict ? ' no-strict' : '') +
+  '` */\n';
 
 function appendFileContents(fileNames, callback) {
 
@@ -35,6 +50,9 @@ function appendFileContents(fileNames, callback) {
 
     fs.readFile(__dirname + '/' + fileName, function (err, data) {
       if (err) throw err;
+      if (noStrict) {
+        data = String(data).replace(/"use strict";?\n?/, '');
+      }
       distFileContents += (data + '\n');
       readNextFile();
     });
@@ -43,15 +61,29 @@ function appendFileContents(fileNames, callback) {
 }
 
 function ifSpecifiedInclude(moduleName, fileName) {
-  return (modules.indexOf(moduleName) > -1 || includeAllModules) ? fileName : '';
+  var isInIncludedList = modulesToInclude.indexOf(moduleName) > -1;
+  var isInExcludedList = modulesToExclude.indexOf(moduleName) > -1;
+
+  // excluded list takes precedence over modules=ALL
+  return ((isInIncludedList || includeAllModules) && !isInExcludedList) ? fileName : '';
+}
+
+function ifSpecifiedDependencyInclude(included, excluded, fileName) {
+  return (
+    (
+      (modulesToInclude.indexOf(included) > -1 || includeAllModules) &&
+      (modulesToExclude.indexOf(excluded) == -1))
+    ? fileName
+    : ''
+  );
 }
 
 var filesToInclude = [
 
   'HEADER.js',
 
-  ifSpecifiedInclude('serialization', 'lib/json2.js'),
-  ifSpecifiedInclude('text', 'lib/cufon.js'),
+  ifSpecifiedDependencyInclude('text', 'cufon', 'lib/cufon.js'),
+  ifSpecifiedDependencyInclude('serialization', 'json', 'lib/json2.js'),
 
   'src/log.js',
   'src/observable.js',
@@ -71,7 +103,7 @@ var filesToInclude = [
 
   ifSpecifiedInclude('parser', 'src/parser.js'),
 
-  'src/gradient.js',
+  'src/gradient.class.js',
   'src/point.class.js',
   'src/intersection.class.js',
   'src/color.class.js',
@@ -102,7 +134,7 @@ var filesToInclude = [
 
   ifSpecifiedInclude('text', 'src/text.class.js'),
 
-  ifSpecifiedInclude('node', 'src/fabric_node.js')
+  ifSpecifiedInclude('node', 'src/node.js')
 ];
 
 appendFileContents(filesToInclude, function() {

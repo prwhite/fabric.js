@@ -1,3 +1,5 @@
+### Fabric [![Build Status](https://secure.travis-ci.org/kangax/fabric.js.png?branch=master)](http://travis-ci.org/#!/kangax/fabric.js)
+
 **Fabric.js** is a framework that makes it easy to work with HTML5 canvas element. It is an **interactive object model** on top of canvas element. It is also an **SVG-to-canvas parser**.
 
 <a href="http://fabricjs.com/kitchensink/" target="_blank"><img src="https://github.com/kangax/fabric.js/raw/master/lib/screenshot.png" style="width:300px;box-shadow:rgba(0,0,0,0.3) 0 0 5px"></a>
@@ -45,31 +47,31 @@ Fabric.js started as a foundation for design editor on [printio.ru](http://print
         $ node build.js
 
     - Or build a custom distribution file, by passing (comma separated) module names to be included.<br>
-    
+
             $ node build.js modules=text,serialization,parser
             // or
             $ node build.js modules=text
             // or
             $ node build.js modules=parser,text
             // etc.
-      
-      By default (when none of the modules are specified) only basic functionality is included. 
+
+      By default (when none of the modules are specified) only basic functionality is included.
       See the list of modules below for more information on each one of them.
       Note that default distribution has support for **static canvases** only.
-      
+
       To get minimal distribution with interactivity, make sure to include corresponding module:
-      
+
             $ node build.js modules=interaction
-    
+
     - You can also include all modules like so:
-    
+
             $ node build.js modules=ALL
 
 3. Create a minified distribution file
 
         # Using YUICompressor (default option)
         $ node build.js modules=... minifier=yui
-        
+
         # or Google Closure Compiler
         $ node build.js modules=... minifier=closure
 
@@ -79,13 +81,13 @@ Fabric.js started as a foundation for design editor on [printio.ru](http://print
 
 ### Demos
 
-- [Demos](http://kangax.github.com/fabric.js/demos/)
-- [Kitchensink demo](http://kangax.github.com/fabric.js/kitchensink/)
-- [Benchmarks](http://kangax.github.com/fabric.js/benchmarks/)
+- [Demos](http://fabricjs.com/demos/)
+- [Kitchensink demo](http://fabricjs.com/kitchensink/)
+- [Benchmarks](http://fabricjs.com/benchmarks/)
 
 ### Documentation
 
-Documentation is always available at [http://kangax.github.com/fabric.js/docs/](http://kangax.github.com/fabric.js/docs/). You can also build it locally, following step 4 from the "Building" section of this README.
+Documentation is always available at [http://fabricjs.com/docs/](http://fabricjs.com/docs/). You can also build it locally, following step 4 from the "Building" section of this README.
 
 Also see [presentation from BK.js](http://www.slideshare.net/kangax/fabricjs-building-acanvaslibrarybk) and [presentation from Falsy Values](http://www.slideshare.net/kangax/fabric-falsy-values-8067834) for an overview of fabric.js, how it works, and its features.
 
@@ -98,16 +100,17 @@ These are the optional modules that could be specified for inclusion, when build
 - **interaction** — Adds support for interactive features of fabric — selecting/transforming objects/groups via mouse/touch devices.
 - **parser** — Adds support for `fabric.parseSVGDocument`, `fabric.loadSVGFromURL`, and `fabric.loadSVGFromString`
 - **image_filters** — Adds support for image filters, such as grayscale of white removal.
+- **easing** - Adds support for animation easing functions
 - **node** — Adds support for running fabric under node.js, with help of [jsdom](https://github.com/tmpvar/jsdom) and [node-canvas](https://github.com/learnboost/node-canvas) libraries.
 
 ### Examples of use
 
 #### Adding red rectangle to canvas
-  
+
     <canvas id="canvas" width="300" height="300"></canvas>
     ...
     var canvas = new fabric.Canvas('canvas');
-    
+
     var rect = new fabric.Rect({
       top: 100,
       left: 100,
@@ -115,7 +118,7 @@ These are the optional modules that could be specified for inclusion, when build
       height: 70,
       fill: 'red'
     });
-    
+
     canvas.add(rect);
 
 ### Staying in touch
@@ -127,7 +130,7 @@ Follow [@fabric.js](http://twitter.com/fabricjs) or [@kangax](http://twitter.com
 - Ernest Delgado for the original idea of [manipulating images on canvas](http://www.ernestdelgado.com/archive/canvas/).
 - [Maxim "hakunin" Chernyak](http://twitter.com/hakunin) for ideas, and help with various parts of the library throughout its life.
 - [Sergey Nisnevich](http://nisnya.com) for help with geometry logic.
-- Github contributors: @Kingsquare, @cleercode, @jarek-itmore, @sunrei, @khronnuz
+- Github contributors: @Kingsquare, @cleercode, @jarek-itmore, @sunrei, @khronnuz, @ollym
 
 ### MIT License
 

@@ -52,12 +52,14 @@
      * @property
      * @type Array
      */
-    stateProperties:  ('top left width height scaleX scaleY flipX flipY ' +
-                      'theta angle opacity cornersize fill overlayFill stroke ' +
-                      'strokeWidth fillRule borderScaleFactor transformMatrix ' +
-                      'selectable ' +
-                      'id inkscape:label').split(' '),
-                      
+    stateProperties:  (
+      'top left width height scaleX scaleY flipX flipY ' +
+      'theta angle opacity cornersize fill overlayFill ' +
+      'stroke strokeWidth strokeDashArray fillRule ' +
+      'borderScaleFactor transformMatrix selectable ' +
+      'id inkscape:label'
+    ).split(' '),
+
     top:                      0,
     left:                     0,
     width:                    0,
@@ -78,6 +80,7 @@
     overlayFill:              null,
     stroke:                   null,
     strokeWidth:              1,
+    strokeDashArray:          null,
     borderOpacityWhenMoving:  0.4,
     borderScaleFactor:        1,
     transformMatrix:          null,
@@ -111,6 +114,13 @@
     hasRotatingPoint:         false,
 
     /**
+     * Offset for object's rotating point (when enabled)
+     * @property
+     * @type Number
+     */
+    rotatingPointOffset:      40,
+
+    /**
      * @method callSuper
      * @param {String} methodName
      */
@@ -127,7 +137,19 @@
      * @param {Object} [options] Options object
      */
     initialize: function(options) {
-      options && this.setOptions(options);
+      if (options) {
+        this.setOptions(options);
+        this._initGradient(options);
+      }
+    },
+
+    /**
+     * @method initGradient
+     */
+    _initGradient: function(options) {
+      if (options.fill && typeof options.fill == 'object' && !(options.fill instanceof fabric.Gradient)) {
+        this.set('fill', new fabric.Gradient(options.fill));
+      }
     },
 
     /**
@@ -171,10 +193,11 @@
         top:              toFixed(this.top, this.NUM_FRACTION_DIGITS),
         width:            toFixed(this.width, this.NUM_FRACTION_DIGITS),
         height:           toFixed(this.height, this.NUM_FRACTION_DIGITS),
-        fill:             this.fill,
+        fill:             (this.fill && this.fill.toObject) ? this.fill.toObject() : this.fill,
         overlayFill:      this.overlayFill,
         stroke:           this.stroke,
         strokeWidth:      this.strokeWidth,
+        strokeDashArray:  this.strokeDashArray,
         scaleX:           toFixed(this.scaleX, this.NUM_FRACTION_DIGITS),
         scaleY:           toFixed(this.scaleY, this.NUM_FRACTION_DIGITS),
         angle:            toFixed(this.getAngle(), this.NUM_FRACTION_DIGITS),
@@ -221,6 +244,7 @@
       return [
         "stroke: ", (this.stroke ? this.stroke : 'none'), "; ",
         "stroke-width: ", (this.strokeWidth ? this.strokeWidth : '0'), "; ",
+        "stroke-dasharray: ", (this.strokeDashArray ? this.strokeDashArray.join(' ') : "; "),
         "fill: ", (this.fill ? this.fill : 'none'), "; ",
         "opacity: ", (this.opacity ? this.opacity : '1'), ";"
       ].join("");
@@ -284,32 +308,43 @@
     },
 
     /**
-     * Basic setter
-     * @param {Any} property
-     * @param {Any} value
-     * @return {fabric.Object} thisArg
+     * Sets property to a given value
+     * @method set
+     * @param {String} name
+     * @param {Object|Function} value
+     * @return {fabric.Group} thisArg
      * @chainable
      */
-    set: function(property, value) {
-      var shouldConstrainValue = (property === 'scaleX' || property === 'scaleY') && value < this.MIN_SCALE_LIMIT;
-      if (shouldConstrainValue) {
-        value = this.MIN_SCALE_LIMIT;
-      }
-      if (typeof property == 'object') {
-        for (var prop in property) {
-          this.set(prop, property[prop]);
+    set: function(key, value) {
+      if (typeof key === 'object') {
+        for (var prop in key) {
+          this._set(prop, key[prop]);
         }
       }
       else {
-        if (property === 'angle') {
-          this.setAngle(value);
+        if (typeof value === 'function') {
+          this._set(key, value(this.get(key)));
         }
         else {
-          this[property] = value;
+          this._set(key, value);
         }
       }
-
       return this;
+    },
+
+    _set: function(key, value) {
+      var shouldConstrainValue = (key === 'scaleX' || key === 'scaleY') &&
+                                  value < this.MIN_SCALE_LIMIT;
+
+      if (shouldConstrainValue) {
+        value = this.MIN_SCALE_LIMIT;
+      }
+      if (key === 'angle') {
+        this.setAngle(value);
+      }
+      else {
+        this[key] = value;
+      }
     },
 
     /**
@@ -363,7 +398,7 @@
       ctx.save();
 
       var m = this.transformMatrix;
-      if (m) {
+      if (m && !this.group) {
         ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
       }
 
@@ -371,7 +406,7 @@
         this.transform(ctx);
       }
 
-      if (this.stroke) {
+      if (this.stroke || this.strokeDashArray) {
         ctx.lineWidth = this.strokeWidth;
         ctx.strokeStyle = this.stroke;
       }
@@ -380,16 +415,27 @@
         ctx.fillStyle = this.overlayFill;
       }
       else if (this.fill) {
-        ctx.fillStyle = this.fill;
+        ctx.fillStyle = this.fill.toLiveGradient
+          ? this.fill.toLiveGradient(ctx)
+          : this.fill;
       }
 
-      // TODO: this breaks some shapes, need to look into it
-      // if (this.group) {
-        // ctx.translate(
-        //    -this.group.width / 2 + this.width / 2,
-        //    -this.group.height / 2 + this.height / 2
-        // );
-      // }
+      if (this.group && this.type === 'rect') {
+        if (m) {
+          ctx.translate(
+            -this.group.width / 2,
+            -this.group.height / 2
+          );
+          ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
+        }
+        else {
+          ctx.translate(
+            -this.group.width / 2 + this.width / 2,
+            -this.group.height / 2 + this.height / 2
+          );
+        }
+      }
+
       this._render(ctx, noTransform);
 
       if (this.active && !noTransform) {
@@ -545,10 +591,6 @@
         x: tl.x + (this.currentWidth/2 * cosTh),
         y: tl.y + (this.currentWidth/2 * sinTh)
       };
-      var mbr = {
-        x: tl.x + (this.currentWidth/2 * cosTh),
-        y: tl.y + (this.currentWidth/2 * sinTh)
-      };
 
       // debugging
 
@@ -565,7 +607,7 @@
       //       }, 50);
 
       // clockwise
-      this.oCoords = { tl: tl, tr: tr, br: br, bl: bl, ml: ml, mt: mt, mr: mr, mb: mb, mtr: mtr, mbr: mbr };
+      this.oCoords = { tl: tl, tr: tr, br: br, bl: bl, ml: ml, mt: mt, mr: mr, mb: mb, mtr: mtr };
 
       // set coordinates of the draggable boxes in the corners used to scale/rotate the image
       this._setCornerCoords();
@@ -635,18 +677,75 @@
       );
 
       if (this.hasRotatingPoint && !this.hideCorners && !this.lockRotation) {
-        var rotateHeight = (-h/2);
+        var rotateHeight = (this.flipY ? h : -h) / 2;
         var rotateWidth = (-w/2);
 
         ctx.beginPath();
         ctx.moveTo(0, rotateHeight);
-        ctx.lineTo(0, rotateHeight - 40);
+        ctx.lineTo(0, rotateHeight + (this.flipY ? this.rotatingPointOffset : -this.rotatingPointOffset));
         ctx.closePath();
         ctx.stroke();
       }
 
       ctx.restore();
       return this;
+    },
+
+    _renderDashedStroke: function(ctx) {
+
+      if (1 & this.strokeDashArray.length /* if odd number of items */) {
+        /* duplicate items */
+        this.strokeDashArray.push.apply(this.strokeDashArray, this.strokeDashArray);
+      }
+
+      var i = 0,
+          x = -this.width/2, y = -this.height/2,
+          _this = this,
+          padding = this.padding,
+          width = this.getWidth(),
+          height = this.getHeight(),
+          dashedArrayLength = this.strokeDashArray.length;
+
+      ctx.save();
+      ctx.beginPath();
+
+      function renderSide(xMultiplier, yMultiplier) {
+
+        var lineLength = 0,
+            sideLength = (yMultiplier ? _this.height : _this.width) + padding * 2;
+
+        while (lineLength < sideLength) {
+
+          var lengthOfSubPath = _this.strokeDashArray[i++];
+          lineLength += lengthOfSubPath;
+
+          if (lineLength > sideLength) {
+            var lengthDiff = lineLength - sideLength;
+          }
+
+          // track coords
+          if (xMultiplier) {
+            x += (lengthOfSubPath * xMultiplier) - (lengthDiff * xMultiplier || 0);
+          }
+          else {
+            y += (lengthOfSubPath * yMultiplier) - (lengthDiff * yMultiplier || 0);
+          }
+
+          ctx[1 & i /* odd */ ? 'moveTo' : 'lineTo'](x, y);
+          if (i >= dashedArrayLength) {
+            i = 0;
+          }
+        }
+      }
+
+      renderSide(1, 0);
+      renderSide(0, 1);
+      renderSide(-1, 0);
+      renderSide(0, -1);
+
+      ctx.stroke();
+      ctx.closePath();
+      ctx.restore();
     },
 
     /**
@@ -731,8 +830,13 @@
         // ctx.arc(_left, _top, sizeX / 2, 0, Math.PI * 2, false);
         // ctx.fill();
         // ctx.restore();
+
         _left = left + this.width/2 - scaleOffsetX;
-        _top = top - (45 / this.scaleY);
+
+        _top = this.flipY ?
+          (top + height + (this.rotatingPointOffset / this.scaleY) - sizeY/2)
+          : (top - (this.rotatingPointOffset / this.scaleY) - sizeY/2);
+
         ctx.fillRect(_left, _top, sizeX, sizeY);
       }
 
@@ -959,7 +1063,7 @@
      * @return {String|Boolean} corner code (tl, tr, bl, br, etc.), or false if nothing is found
      */
     _findTargetCorner: function(e, offset) {
-      if (!this.hasControls) return false;
+      if (!this.hasControls || !this.active) return false;
 
       var pointer = getPointer(e),
           ex = pointer.x - offset.left,
@@ -968,6 +1072,10 @@
           lines;
 
       for (var i in this.oCoords) {
+        if (i === 'mtr' && !this.hasRotatingPoint) {
+          return false;
+        }
+
         lines = this._getImageLines(this.oCoords[i].corner, i);
         // debugging
         // canvas.contextTop.fillRect(lines.bottomline.d.x, lines.bottomline.d.y, 2, 2);
@@ -1236,44 +1344,22 @@
         }
       };
 
-      var rotationPointDistance = 40;
       coords.mtr.corner = {
         tl: {
-          x: coords.mtr.x - sinHalfOffset + (sinTh * rotationPointDistance),
-          y: coords.mtr.y - cosHalfOffset - (cosTh * rotationPointDistance)
+          x: coords.mtr.x - sinHalfOffset + (sinTh * this.rotatingPointOffset),
+          y: coords.mtr.y - cosHalfOffset - (cosTh * this.rotatingPointOffset)
         },
         tr: {
-          x: coords.mtr.x + cosHalfOffset + (sinTh * rotationPointDistance),
-          y: coords.mtr.y - sinHalfOffset - (cosTh * rotationPointDistance)
+          x: coords.mtr.x + cosHalfOffset + (sinTh * this.rotatingPointOffset),
+          y: coords.mtr.y - sinHalfOffset - (cosTh * this.rotatingPointOffset)
         },
         bl: {
-          x: coords.mtr.x - cosHalfOffset + (sinTh * rotationPointDistance),
-          y: coords.mtr.y + sinHalfOffset - (cosTh * rotationPointDistance)
+          x: coords.mtr.x - cosHalfOffset + (sinTh * this.rotatingPointOffset),
+          y: coords.mtr.y + sinHalfOffset - (cosTh * this.rotatingPointOffset)
         },
         br: {
-          x: coords.mtr.x + sinHalfOffset + (sinTh * rotationPointDistance),
-          y: coords.mtr.y + cosHalfOffset - (cosTh * rotationPointDistance)
-        }
-      };
-
-      var bottomRotationPointDistance = (-rotationPointDistance - this.currentHeight);
-
-      coords.mbr.corner = {
-        tl: {
-          x: coords.mbr.x - sinHalfOffset + (sinTh * bottomRotationPointDistance),
-          y: coords.mbr.y - cosHalfOffset - (cosTh * bottomRotationPointDistance)
-        },
-        tr: {
-          x: coords.mbr.x + cosHalfOffset + (sinTh * bottomRotationPointDistance),
-          y: coords.mbr.y - sinHalfOffset - (cosTh * bottomRotationPointDistance)
-        },
-        bl: {
-          x: coords.mbr.x - cosHalfOffset + (sinTh * bottomRotationPointDistance),
-          y: coords.mbr.y + sinHalfOffset - (cosTh * bottomRotationPointDistance)
-        },
-        br: {
-          x: coords.mbr.x + sinHalfOffset + (sinTh * bottomRotationPointDistance),
-          y: coords.mbr.y + cosHalfOffset - (cosTh * bottomRotationPointDistance)
+          x: coords.mtr.x + sinHalfOffset + (sinTh * this.rotatingPointOffset),
+          y: coords.mtr.y + cosHalfOffset - (cosTh * this.rotatingPointOffset)
         }
       };
     },
@@ -1309,8 +1395,8 @@
       return this.toObject();
     },
 
-    setGradientFill: function(ctx, options) {
-      this.set('fill', fabric.Gradient.forObject(this, ctx, options));
+    setGradientFill: function(options) {
+      this.set('fill', fabric.Gradient.forObject(this, options));
     },
 
     animate: function(property, to, options) {
@@ -1341,6 +1427,91 @@
           options.onComplete && options.onComplete();
         }
       });
+    },
+
+    /**
+     * Centers object horizontally on canvas to which it was added last
+     * @method centerH
+     * @return {fabric.Object} thisArg
+     */
+    centerH: function () {
+      this.canvas.centerObjectH(this);
+      return this;
+    },
+
+    /**
+     * Centers object vertically on canvas to which it was added last
+     * @method centerV
+     * @return {fabric.Object} thisArg
+     * @chainable
+     */
+    centerV: function () {
+      this.canvas.centerObjectV(this);
+      return this;
+    },
+
+    /**
+     * Centers object vertically and horizontally on canvas to which is was added last
+     * @method center
+     * @return {fabric.Object} thisArg
+     * @chainable
+     */
+    center: function () {
+      return this.centerH().centerV();
+    },
+
+    /**
+     * Removes object from canvas to which it was added last
+     * @method remove
+     * @return {fabric.Object} thisArg
+     * @chainable
+     */
+    remove: function() {
+      return this.canvas.remove(this);
+    },
+
+    /**
+     * Moves an object to the bottom of the stack of drawn objects
+     * @method sendToBack
+     * @return {fabric.Object} thisArg
+     * @chainable
+     */
+    sendToBack: function() {
+      this.canvas.sendToBack(this);
+      return this;
+    },
+
+    /**
+     * Moves an object to the top of the stack of drawn objects
+     * @method bringToFront
+     * @return {fabric.Object} thisArg
+     * @chainable
+     */
+    bringToFront: function() {
+      this.canvas.bringToFront(this);
+      return this;
+    },
+
+    /**
+     * Moves an object one level down in stack of drawn objects
+     * @method sendBackwards
+     * @return {fabric.Object} thisArg
+     * @chainable
+     */
+    sendBackwards: function() {
+      this.canvas.sendBackwards(this);
+      return this;
+    },
+
+    /**
+     * Moves an object one level up in stack of drawn objects
+     * @method bringForward
+     * @return {fabric.Object} thisArg
+     * @chainable
+     */
+    bringForward: function() {
+      this.canvas.bringForward(this);
+      return this;
     }
   });
 
@@ -1369,5 +1540,7 @@
       })(propName);
     }
   }
+
+  extend(fabric.Object.prototype, fabric.Observable);
 
 })(typeof exports != 'undefined' ? exports : this);

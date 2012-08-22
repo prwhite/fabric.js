@@ -1,9 +1,7 @@
-//= require "path.class"
-
 (function(global) {
-  
+
   "use strict";
-  
+
   var fabric = global.fabric || (global.fabric = { }),
       extend = fabric.util.object.extend,
       invoke = fabric.util.array.invoke,
@@ -11,30 +9,30 @@
       parentToObject = fabric.Object.prototype.toObject,
       camelize = fabric.util.string.camelize,
       capitalize = fabric.util.string.capitalize;
-  
+
   if (fabric.PathGroup) {
     fabric.warn('fabric.PathGroup is already defined');
     return;
   }
-  
-  /** 
+
+  /**
    * @class PathGroup
    * @extends fabric.Path
    */
   fabric.PathGroup = fabric.util.createClass(fabric.Path, /** @scope fabric.PathGroup.prototype */ {
-    
+
     /**
      * @property
      * @type String
      */
     type: 'path-group',
-    
+
     /**
      * @property
      * @type Boolean
      */
     forceFillOverwrite: false,
-    
+
     /**
      * Constructor
      * @method initialize
@@ -43,78 +41,46 @@
      * @return {fabric.PathGroup} thisArg
      */
     initialize: function(paths, options) {
-      
+
       options = options || { };
       this.paths = paths || [ ];
-      
+
       for (var i = this.paths.length; i--; ) {
         this.paths[i].group = this;
       }
-      
+
       this.setOptions(options);
       this.setCoords();
-      
+
       if (options.sourcePath) {
         this.setSourcePath(options.sourcePath);
       }
     },
-    
-    /**
-     * @private
-     * @method _initProperties
-     */
-    // _initProperties: function() {
-    //       this.stateProperties.forEach(function(prop) {
-    //         if (prop === 'fill') {
-    //           this.set(prop, this.options[prop]);
-    //         }
-    //         else if (prop === 'angle') {
-    //           this.setAngle(this.options[prop]);
-    //         }
-    //         else {
-    //           this[prop] = this.options[prop];
-    //         }
-    //       }, this);
-    //     },
-    
+
     /**
      * Renders this group on a specified context
      * @method render
      * @param {CanvasRenderingContext2D} ctx Context to render this instance on
      */
     render: function(ctx) {
-      if (this.stub) {
-        // fast-path, rendering image stub
-        ctx.save();
-        
-        this.transform(ctx);
-        this.stub.render(ctx, false /* no transform */);
-        if (this.active) {
-          this.drawBorders(ctx);
-          this.drawCorners(ctx);
-        }
-        ctx.restore();
+      ctx.save();
+
+      var m = this.transformMatrix;
+      if (m) {
+        ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
       }
-      else {
-        ctx.save();
-        
-        var m = this.transformMatrix;
-        if (m) {
-          ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
-        }
-        
-        this.transform(ctx);
-        for (var i = 0, l = this.paths.length; i < l; ++i) {
-          this.paths[i].render(ctx, true);
-        }
-        if (this.active) {
-          this.drawBorders(ctx);
-          this.hideCorners || this.drawCorners(ctx);
-        }
-        ctx.restore();
+
+      this.transform(ctx);
+      for (var i = 0, l = this.paths.length; i < l; ++i) {
+        this.paths[i].render(ctx, true);
       }
+      if (this.active) {
+        this.drawBorders(ctx);
+        this.hideCorners || this.drawCorners(ctx);
+      }
+      ctx.restore();
     },
-    
+
     /**
      * Sets certain property to a certain value
      * @method set
@@ -136,7 +102,7 @@
       }
       return this;
     },
-    
+
     /**
      * Returns object representation of this path group
      * @method toObject
@@ -148,7 +114,7 @@
         sourcePath: this.sourcePath
       });
     },
-    
+
     /**
      * Returns dataless object representation of this path group
      * @method toDatalessObject
@@ -161,7 +127,7 @@
       }
       return o;
     },
-    
+
     /**
      * Returns svg representation of an instance
      * @method toSVG
@@ -185,17 +151,17 @@
 
       return markup.join('');
     },
-    
+
      /**
       * Returns a string representation of this path group
       * @method toString
       * @return {String} string representation of an object
       */
     toString: function() {
-      return '#<fabric.PathGroup (' + this.complexity() + 
+      return '#<fabric.PathGroup (' + this.complexity() +
         '): { top: ' + this.top + ', left: ' + this.left + ' }>';
     },
-    
+
     /**
      * Returns true if all paths in this group are of same color
      * @method isSameColor
@@ -207,7 +173,7 @@
         return path.get('fill') === firstPathFill;
       });
     },
-    
+
     /**
       * Returns number representation of object's complexity
       * @method complexity
@@ -218,7 +184,7 @@
         return total + ((path && path.complexity) ? path.complexity() : 0);
       }, 0);
     },
-    
+
     /**
       * Makes path group grayscale
       * @method toGrayscale
@@ -231,7 +197,7 @@
       }
       return this;
     },
-    
+
     /**
      * Returns all paths in this path group
      * @method getObjects
@@ -241,7 +207,7 @@
       return this.paths;
     }
   });
-  
+
   /**
    * @private
    * @method instantiatePaths
@@ -255,7 +221,7 @@
     }
     return paths;
   }
-  
+
   /**
    * Creates fabric.Triangle instance from an object representation
    * @static

@@ -100,31 +100,38 @@
 
     /**
      * Default cursor value used when hovering over an object on canvas
-     * @constant
+     * @property
      * @type String
      */
-    HOVER_CURSOR:           'move',
+    hoverCursor:            'move',
+
+    /**
+     * Default cursor value used when moving an object on canvas
+     * @property
+     * @type String
+     */
+    moveCursor:             'move',
 
     /**
      * Default cursor value used for the entire canvas
-     * @constant
+     * @property
      * @type String
      */
-    CURSOR:                 'default',
+    defaultCursor:          'default',
 
     /**
      * Cursor value used for rotation point
-     * @constant
+     * @property
      * @type String
      */
-    ROTATION_CURSOR:        'crosshair',
+    rotationCursor:         'crosshair',
 
     /**
      * Default element class that's given to wrapper (div) element of canvas
-     * @constant
+     * @property
      * @type String
      */
-    CONTAINER_CLASS:        'canvas-container',
+    containerClass:        'canvas-container',
 
     _initInteractive: function() {
       this._currentTransform = null;
@@ -206,6 +213,7 @@
 
       if (this.isDrawingMode && this._isCurrentlyDrawing) {
         this._finalizeDrawingPath();
+        this.fire('mouse:up', { e: e });
         return;
       }
 
@@ -228,6 +236,7 @@
         if (this.stateful && target.hasStateChanged()) {
           target.isMoving = false;
           this.fire('object:modified', { target: target });
+          target.fire('modified');
         }
       }
 
@@ -241,7 +250,7 @@
       if (activeGroup) {
         activeGroup.setObjectsCoords();
         activeGroup.set('isMoving', false);
-        this._setCursor(this.CURSOR);
+        this._setCursor(this.defaultCursor);
       }
 
       // clear selection
@@ -259,6 +268,7 @@
       }, 50);
 
       this.fire('mouse:up', { target: target, e: e });
+      target && target.fire('mouseup', { e: e })
     },
 
     /**
@@ -281,7 +291,7 @@
 
         // capture coordinates immediately; this allows to draw dots (when movement never occurs)
         this._captureDrawingPath(e);
-
+        this.fire('mouse:down', { e: e });
         return;
       }
 
@@ -330,6 +340,7 @@
       this.renderAll();
 
       this.fire('mouse:down', { target: target, e: e });
+      target && target.fire('mousedown', { e: e });
     },
 
     /**
@@ -348,6 +359,7 @@
         if (this._isCurrentlyDrawing) {
           this._captureDrawingPath(e);
         }
+        this.fire('mouse:move', { e: e });
         return;
       }
 
@@ -378,7 +390,7 @@
               this._objects[i].setActive(false);
             }
           }
-          style.cursor = this.CURSOR;
+          style.cursor = this.defaultCursor;
         }
         else {
           // set proper cursor
@@ -407,12 +419,14 @@
             this.fire('object:rotating', {
               target: this._currentTransform.target
             });
+            this._currentTransform.target.fire('rotating');
           }
           if (!this._currentTransform.target.hasRotatingPoint) {
             this._scaleObject(x, y);
             this.fire('object:scaling', {
               target: this._currentTransform.target
             });
+            this._currentTransform.target.fire('scaling');
           }
         }
         else if (this._currentTransform.action === 'scale') {
@@ -420,6 +434,7 @@
           this.fire('object:scaling', {
             target: this._currentTransform.target
           });
+          this._currentTransform.target.fire('scaling');
         }
         else if (this._currentTransform.action === 'scaleX') {
           this._scaleObject(x, y, 'x');
@@ -427,6 +442,7 @@
           this.fire('object:scaling', {
             target: this._currentTransform.target
           });
+          this._currentTransform.target.fire('scaling');
         }
         else if (this._currentTransform.action === 'scaleY') {
           this._scaleObject(x, y, 'y');
@@ -434,6 +450,7 @@
           this.fire('object:scaling', {
             target: this._currentTransform.target
           });
+          this._currentTransform.target.fire('scaling');
         }
         else {
           this._translateObject(x, y);
@@ -441,11 +458,16 @@
           this.fire('object:moving', {
             target: this._currentTransform.target
           });
+
+          this._setCursor(this.moveCursor);
+
+          this._currentTransform.target.fire('moving');
         }
         // only commit here. when we are actually moving the pictures
         this.renderAll();
       }
       this.fire('mouse:move', { target: target, e: e });
+      target && target.fire('mousemove', { e: e });
     },
 
     /**
@@ -531,7 +553,7 @@
           ? 'scaleX'
           : (corner === 'mt' || corner === 'mb')
             ? 'scaleY'
-            : (corner === 'mtr' || corner === 'mbr')
+            : corner === 'mtr'
               ? 'rotate'
               : (target.hasRotatingPoint)
                 ? 'scale'
@@ -560,7 +582,7 @@
     },
 
     _handleGroupLogic: function (e, target) {
-      if (target.isType('group')) {
+      if (target === this.getActiveGroup()) {
         // if it's a group, find target again, this time skipping group
         target = this.findTarget(e, true);
         // if even object is not found, bail out
@@ -571,7 +593,7 @@
       var activeGroup = this.getActiveGroup();
       if (activeGroup) {
         if (activeGroup.contains(target)) {
-          activeGroup.remove(target);
+          activeGroup.removeWithUpdate(target);
           target.setActive(false);
           if (activeGroup.size() === 1) {
             // remove group alltogether if after removal it only contains 1 object
@@ -579,7 +601,7 @@
           }
         }
         else {
-          activeGroup.add(target);
+          activeGroup.addWithUpdate(target);
         }
         this.fire('selection:created', { target: activeGroup, e: e });
         activeGroup.setActive(true);
@@ -590,7 +612,7 @@
           // only if there's an active object
           if (target !== this._activeObject) {
             // and that object is not the actual target
-            var group = new fabric.Group([ this._activeObject,target ]);
+            var group = new fabric.Group([ this._activeObject, target ]);
             this.setActiveGroup(group);
             activeGroup = this.getActiveGroup();
           }
@@ -771,7 +793,7 @@
     _setCursorFromEvent: function (e, target) {
       var s = this.upperCanvasEl.style;
       if (!target) {
-        s.cursor = this.CURSOR;
+        s.cursor = this.defaultCursor;
         return false;
       }
       else {
@@ -782,15 +804,15 @@
                       && target._findTargetCorner(e, this._offset);
 
         if (!corner) {
-          s.cursor = this.HOVER_CURSOR;
+          s.cursor = this.hoverCursor;
         }
         else {
           if (corner in cursorMap) {
             s.cursor = cursorMap[corner];
-          } else if (corner === 'mtr' || corner === 'mbr') {
-            s.cursor = this.ROTATION_CURSOR
+          } else if (corner === 'mtr' && target.hasRotatingPoint) {
+            s.cursor = this.rotationCursor;
           } else {
-            s.cursor = this.CURSOR;
+            s.cursor = this.defaultCursor;
             return false;
           }
         }
@@ -938,7 +960,7 @@
      */
     _initWrapperElement: function () {
       this.wrapperEl = fabric.util.wrapElement(this.lowerCanvasEl, 'div', {
-        'class': this.CONTAINER_CLASS
+        'class': this.containerClass
       });
       fabric.util.setStyle(this.wrapperEl, {
         width: this.getWidth() + 'px',
@@ -971,7 +993,7 @@
 
     /**
      * Returns context of canvas where object selection is drawn
-     * @method getContext
+     * @method getSelectionContext
      * @return {CanvasRenderingContext2D}
      */
     getSelectionContext: function() {
@@ -980,7 +1002,7 @@
 
     /**
      * Returns &lt;canvas> element on which object selection is drawn
-     * @method getElement
+     * @method getSelectionElement
      * @return {HTMLCanvasElement}
      */
     getSelectionElement: function () {
@@ -1004,6 +1026,7 @@
       this.renderAll();
 
       this.fire('object:selected', { target: object, e: e });
+      object.fire('selected', { e: e });
       return this;
     },
 
@@ -1039,6 +1062,7 @@
      */
     setActiveGroup: function (group) {
       this._activeGroup = group;
+      group && group.setActive(true);
       return this;
     },
 
